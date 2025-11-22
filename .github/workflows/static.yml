@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PanicPulse – Voice Emergency System</title>
+    <script src="https://cdn.jsdelivr.net/npm/annyang@2.6.1/dist/annyang.min.js"></script>
+    <style>
+        /*  (CSS unchanged – same as previous paste)  */
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:linear-gradient(180deg,#0a0a0a 0%,#1a1a1a 100%);color:#fff;height:100vh;overflow:hidden;position:relative;touch-action:manipulation}
+        .container{display:flex;flex-direction:column;align-items:center;justify-content:space-between;height:100vh;padding:20px;position:relative;z-index:1}
+        .header{margin-top:40px;text-align:center;animation:fadeIn .5s ease-out}
+        .title{font-size:24px;font-weight:700;letter-spacing:2px;color:#ff6b6b;text-transform:uppercase;display:flex;align-items:center;gap:10px}
+        .alert-icon{width:24px;height:24px;animation:blink 1s infinite}
+        .voice-status{position:absolute;top:120px;text-align:center;font-size:14px;color:#ff9e6b;opacity:0;transition:opacity .3s ease;background:rgba(255,107,107,.1);padding:8px 16px;border-radius:20px;border:1px solid rgba(255,107,107,.3)}
+        .voice-status.active{opacity:1}
+        .voice-status.listening{color:#4caf50;border-color:rgba(76,175,80,.3);background:rgba(76,175,80,.1)}
+        .waveform-container{position:absolute;top:25%;width:90%;max-width:400px;height:100px;display:flex;align-items:center;justify-content:center;gap:4px}
+        .wave-bar{width:4px;background:linear-gradient(to top,#ff6b6b,#ff9e6b);border-radius:2px;transition:height .1s ease;box-shadow:0 0 10px rgba(255,107,107,.5)}
+        .mic-container{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
+        .mic-button{width:180px;height:180px;border-radius:50%;background:linear-gradient(135deg,#ff6b6b 0%,#ff9e6b 100%);border:none;cursor:pointer;position:relative;animation:pulse 2s infinite;box-shadow:0 0 40px rgba(255,107,107,.6);transition:all .3s ease}
+        .mic-button:active{transform:scale(.95)}
+        .mic-icon{width:60px;height:60px;fill:#fff}
+        .mic-glow{position:absolute;top:-20px;left:-20px;right:-20px;bottom:-20px;border-radius:50%;background:radial-gradient(circle,rgba(255,107,107,.3) 0%,transparent 70%);animation:glow 2s infinite}
+        .instructions{position:absolute;bottom:60px;text-align:center;font-size:16px;color:#ff9e6b;animation:fadeIn .5s ease-out .3s both}
+        .heartbeat{display:inline-flex;gap:5px;margin-left:10px}
+        .dot{width:8px;height:8px;background:#ff6b6b;border-radius:50%;animation:heartbeat 1.5s infinite}
+        .dot:nth-child(2){animation-delay:.2s}
+        .dot:nth-child(3){animation-delay:.4s}
+        .emergency-options{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(10,10,10,.95);display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:20px;animation:slideUp .3s ease-out}
+        .emergency-options.active{display:flex}
+        .option-button{width:90%;max-width:350px;padding:20px;background:linear-gradient(135deg,#ff6b6b 0%,#ff9e6b 100%);border:none;border-radius:15px;color:#fff;font-size:18px;font-weight:600;cursor:pointer;transition:all .2s ease;box-shadow:0 5px 20px rgba(255,107,107,.4);display:flex;align-items:center;justify-content:center;gap:10px}
+        .option-button:active{transform:scale(.98);box-shadow:0 3px 15px rgba(255,107,107,.6)}
+        .option-icon{width:24px;height:24px;fill:#fff}
+        .emergency-title{font-size:32px;font-weight:700;color:#ff6b6b;margin-bottom:30px;text-align:center}
+        .flash-alert{position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(circle,rgba(255,107,107,.3) 0%,transparent 70%);opacity:0;pointer-events:none;animation:flash .5s ease-out}
+        @keyframes pulse{0%,100%{transform:scale(1);box-shadow:0 0 40px rgba(255,107,107,.6)}50%{transform:scale(1.05);box-shadow:0 0 60px rgba(255,107,107,.8)}}
+        @keyframes glow{0%,100%{opacity:.5}50%{opacity:.8}}
+        @keyframes blink{0%,50%{opacity:1}51%,100%{opacity:.3}}
+        @keyframes heartbeat{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.3);opacity:1}}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes flash{0%{opacity:0}50%{opacity:1}100%{opacity:0}}
+        .voice-active .mic-button{animation:pulse .5s infinite}
+        .voice-active .wave-bar{animation:wave .5s infinite alternate}
+        @keyframes wave{0%{height:20px}100%{height:60px}}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">
+                <svg class="alert-icon" viewBox="0 0 24 24" fill="#ff6b6b"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                PanicPulse Active
+            </h1>
+        </div>
+
+        <div class="voice-status" id="voiceStatus">🎤 Listening...</div>
+
+        <div class="waveform-container" id="waveform"></div>
+
+        <div class="mic-container">
+            <div class="mic-glow"></div>
+            <button class="mic-button" id="micButton">
+                <svg class="mic-icon" viewBox="0 0 24 24"><path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
+            </button>
+        </div>
+
+        <div class="instructions">
+            <p>Say "<strong>Help me</strong>" to trigger emergency mode</p>
+            <div class="heartbeat"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        </div>
+
+        <div class="emergency-options" id="emergencyOptions">
+            <h2 class="emergency-title">🚨 EMERGENCY MODE 🚨</h2>
+            <button class="option-button" onclick="triggerEmergency('sms')">
+                <svg class="option-icon" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+                Auto SMS Alert
+            </button>
+            <button class="option-button" onclick="triggerEmergency('call')">
+                <svg class="option-icon" viewBox="0 0 24 24"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>
+                Auto Call
+            </button>
+            <button class="option-button" onclick="triggerEmergency('location')">
+                <svg class="option-icon" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                Share Live Location
+            </button>
+        </div>
+
+        <div class="flash-alert" id="flashAlert"></div>
+    </div>
+
+    <script>
+        /* ==========  CONFIG – PUT YOUR KEYS HERE  ========== */
+        const CFG = {
+            twilio: {
+                sid:   'AC_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',   // ← Twilio Account SID
+                token: 'your_auth_token',                    // ← Twilio Auth Token
+                from:  '+1234567890'                         // ← Twilio phone number
+            },
+            gMapsKey: 'AIxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', // ← Google Maps JS key
+            emergencyContacts: [                            // who receives alerts
+                '+19991111111',                             // ← your trusted numbers
+                '+19992222222'
+            ]
+        };
+        /* =================================================== */
+
+        /* ----------  ORIGINAL SETUP CODE  ---------- */
+        const waveformContainer = document.getElementById('waveform');
+        for(let i=0;i<30;i++){
+            const bar=document.createElement('div');bar.className='wave-bar';bar.style.height='20px';bar.style.animationDelay=i*.05+'s';waveformContainer.appendChild(bar);
+        }
+        const synth=window.speechSynthesis; let isVoiceActive=false;
+        function speak(text){
+            if(!synth||isVoiceActive)return;
+            isVoiceActive=true;
+            const u=new SpeechSynthesisUtterance(text);
+            u.rate = 1.4;                       // ← faster speech
+            u.pitch=1; u.volume=1;
+            u.onstart=()=>{document.getElementById('voiceStatus').textContent='🔊 Speaking...';document.getElementById('voiceStatus').classList.add('active');};
+            u.onend  =()=>{isVoiceActive=false;document.getElementById('voiceStatus').textContent='🎤 Listening...';setTimeout(()=>document.getElementById('voiceStatus').classList.remove('active'),1000);};
+            synth.speak(u);
+        }
+        function speakEmergencySequence(){
+            if(isVoiceActive)return;
+            const msgs=["Emergency phrase detected.","Stay calm, I am activating PanicPulse rescue mode.","I am alerting your trusted contacts now.","I'm here with you. Help is on the way, don't panic.","Your location is being tracked safely."];
+            let d=0; msgs.forEach(m=>{setTimeout(()=>speak(m),d);d+=1800;}); // ← tighter gap
+        }
+        if(annyang){
+            const cmds={ 'help me':triggerFullEmergency, 'help':triggerFullEmergency, 'save me':triggerFullEmergency, 'please help':triggerFullEmergency, 'emergency':triggerFullEmergency };
+            annyang.addCommands(cmds); annyang.setLanguage('en-US'); annyang.start({continuous:true,autoRestart:true});
+            annyang.addCallback('result',phrases=>{console.log('👂',phrases);document.body.classList.add('voice-active');document.getElementById('voiceStatus').classList.add('listening');simulateWaveform();setTimeout(()=>{document.body.classList.remove('voice-active');document.getElementById('voiceStatus').classList.remove('listening');},2000);});
+            annyang.addCallback('error',e=>{console.error(e);speak('Voice detection error. Tap the mic button manually.');});
+            setTimeout(()=>{document.getElementById('voiceStatus').textContent='🎤 Voice Ready – Say "Help Me"';document.getElementById('voiceStatus').classList.add('active');setTimeout(()=>document.getElementById('voiceStatus').classList.remove('active'),3000);},1500);
+        }else{document.getElementById('voiceStatus').textContent='❌ Voice not supported';document.getElementById('voiceStatus').style.color='#ff6b6b';}
+        function simulateWaveform(){const bars=document.querySelectorAll('.wave-bar');const id=setInterval(()=>bars.forEach(b=>b.style.height=Math.random()*60+20+'px'),100);setTimeout(()=>{clearInterval(id);bars.forEach(b=>b.style.height='20px');},2000);}
+        function triggerFullEmergency(){
+            if(document.getElementById('emergencyOptions').classList.contains('active'))return;
+            const flash=document.getElementById('flashAlert');flash.style.animation='none';setTimeout(()=>flash.style.animation='flash .5s ease-out',10);
+            speakEmergencySequence();
+            setTimeout(()=>document.getElementById('emergencyOptions').classList.add('active'),1000);
+            if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);
+        }
+        document.getElementById('micButton').addEventListener('click',function(){this.style.transform='scale(.95)';setTimeout(()=>{this.style.transform='';triggerFullEmergency();},100);});
+        document.addEventListener('touchend',e=>{const now=Date.now();if(now-lastTouchEnd<=300)e.preventDefault();lastTouchEnd=now;},false); let lastTouchEnd=0;
+        document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+        document.addEventListener('click',()=>{if(synth&&!isVoiceActive&&annyang){document.removeEventListener('click',arguments.callee);setTimeout(()=>speak('PanicPulse voice system ready. Say "help me" to activate.'),500);}}, {once:true});
+
+        /* ----------  NEW REAL-WORLD ACTIONS  ---------- */
+        async function getCurrentPosition(){
+            return new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(p=>res({lat:p.coords.latitude,lng:p.coords.longitude}),rej,{enableHighAccuracy:true,timeout:10000}));
+        }
+        async function getLocationString(){
+            try{const{lat,lng}=await getCurrentPosition();return`${lat.toFixed(5)},${lng.toFixed(5)}`;}catch{return'unknown';}
+        }
+        async function sendEmergencySMS(){
+            const loc=await getLocationString();
+            const body=`🚨 PANIC-PULSE ALERT 🚨
+${new Date().toLocaleString()}
+I may be in danger. My approximate location: ${loc}
+If you receive this, please try to contact me or alert authorities.`;
+            for(const to of CFG.emergencyContacts){
+                fetch(https://api.twilio.com/2010-04-01/Accounts/${CFG.twilio.sid}/Messages.json,{
+                    method:'POST',
+                    headers:{
+                        'Authorization':'Basic '+btoa(CFG.twilio.sid+':'+CFG.twilio.token),
+                        'Content-Type':'application/x-www-form-urlencoded'
+                    },
+                    body:new URLSearchParams({From:CFG.twilio.from,To:to,Body:body})
+                }).then(r=>r.ok?console.log('SMS sent to '+to):console.error(r));
+            }
+        }
+        async function initiateTwilioCall(){
+            const loc=await getLocationString();
+            const twiml=encodeURIComponent(<Response><Say voice="alice">This is an automated PanicPulse emergency call. The phone owner may be in danger. Last known location: ${loc}. Please try to contact them or alert authorities.</Say></Response>);
+            CFG.emergencyContacts.forEach(to=>{
+                fetch(https://api.twilio.com/2010-04-01/Accounts/${CFG.twilio.sid}/Calls.json,{
+                    method:'POST',
+                    headers:{
+                        'Authorization':'Basic '+btoa(CFG.twilio.sid+':'+CFG.twilio.token),
+                        'Content-Type':'application/x-www-form-urlencoded'
+                    },
+                    body:new URLSearchParams({From:CFG.twilio.from,To:to,Twiml:twiml})
+                });
+            });
+        }
+        async function shareLiveLocation(){
+            const{lat,lng}=await getCurrentPosition();
+            const map=https://maps.google.com/?q=${lat},${lng}&ll=${lat},${lng}&z=17;
+            const body=I am sharing my LIVE location: ${map};
+            CFG.emergencyContacts.forEach(to=>{
+                fetch(https://api.twilio.com/2010-04-01/Accounts/${CFG.twilio.sid}/Messages.json,{
+                    method:'POST',
+                    headers:{
+                        'Authorization':'Basic '+btoa(CFG.twilio.sid+':'+CFG.twilio.token),
+                        'Content-Type':'application/x-www-form-urlencoded'
+                    },
+                    body:new URLSearchParams({From:CFG.twilio.from,To:to,Body:body})
+                });
+            });
+        }
+        function triggerEmergency(type){
+            const actions={sms:'Auto SMS alert sent to emergency contacts.',call:'Emergency call initiated. Connecting now.',location:'Live location shared with trusted contacts.'};
+            speak(actions[type]);
+            switch(type){
+                case 'sms':     sendEmergencySMS();     break;
+                case 'call':    initiateTwilioCall();   break;
+                case 'location':shareLiveLocation();    break;
+            }
+            const btn=event.currentTarget,orig=btn.innerHTML;
+            btn.innerHTML='✓ '+actions[type].split('.')[0]; btn.style.background='#4CAF50';
+            setTimeout(()=>{btn.innerHTML=orig;btn.style.background='';},4000);
+            if(navigator.vibrate)navigator.vibrate(100);
+        }
+    </script>
+</body>
+</html>
